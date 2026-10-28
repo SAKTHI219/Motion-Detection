@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Neural Vision · Emotion & Gesture Intelligence</title>
+<style>
+  :root { color-scheme:dark; --bg:#06010a; --panel:rgba(22,6,13,.72); --line:rgba(220,20,60,.35); --text:#fde8ec; --muted:#b97d8b;
+          --accent:#dc143c; --hi:#ff3b61; --glow:0 0 10px rgba(220,20,60,.65), 0 0 26px rgba(220,20,60,.3);
+          --mono:ui-monospace,"SF Mono",Consolas,"Liberation Mono",monospace; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,sans-serif; color:var(--text); min-height:100vh; background:var(--bg); }
+  .bgfx { position:fixed; inset:0; z-index:-1; pointer-events:none;
+          background:radial-gradient(ellipse 70% 50% at 50% -10%, rgba(220,20,60,.28), transparent 70%),
+                     radial-gradient(ellipse 50% 40% at 100% 100%, rgba(140,10,40,.25), transparent 70%),
+                     linear-gradient(rgba(220,20,60,.07) 1px, transparent 1px) 0 0/44px 44px,
+                     linear-gradient(90deg, rgba(220,20,60,.07) 1px, transparent 1px) 0 0/44px 44px; }
+  main { max-width:1180px; margin:0 auto; padding:20px 16px 32px; }
+  .top { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
+  .brand { display:flex; align-items:center; gap:14px; }
+  .logo { width:42px; height:42px; border-radius:50%; border:2px solid var(--hi); box-shadow:var(--glow), inset 0 0 12px rgba(220,20,60,.6);
+          position:relative; animation:spin 8s linear infinite; }
+  .logo::before { content:""; position:absolute; inset:7px; border-radius:50%; border:2px dashed var(--accent); }
+  .logo::after { content:""; position:absolute; inset:15px; border-radius:50%; background:var(--hi); box-shadow:var(--glow); }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  h1 { margin:0; font-size:1.5rem; letter-spacing:.18em; text-transform:uppercase; color:#fff; text-shadow:var(--glow); }
+  .sub { margin:2px 0 0; color:var(--muted); font-size:.82rem; letter-spacing:.04em; }
+  .chips { display:flex; gap:8px; flex-wrap:wrap; }
+  .chip { font:600 .72rem var(--mono); letter-spacing:.1em; padding:7px 12px; border:1px solid var(--line); border-radius:999px;
+          background:var(--panel); display:flex; align-items:center; gap:8px; color:var(--muted); }
+  .chip b { color:var(--text); font-weight:700; }
+  .dot { width:8px; height:8px; border-radius:50%; background:#6b3a45; }
+  .dot.live { background:#ff2d55; box-shadow:0 0 10px #ff2d55; animation:pulse 1.2s infinite; }
+  @keyframes pulse { 50% { opacity:.35; } }
+  .layout { display:grid; grid-template-columns:1.5fr 1fr; gap:16px; align-items:start; }
+  @media (max-width:860px) { .layout { grid-template-columns:1fr; } }
+  .panel { background:var(--panel); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border:1px solid var(--line);
+           border-radius:16px; padding:16px; box-shadow:0 8px 40px rgba(0,0,0,.45), inset 0 0 30px rgba(220,20,60,.06); margin-bottom:16px; }
+  .ph { display:flex; align-items:center; gap:10px; font:700 .74rem var(--mono); letter-spacing:.16em; text-transform:uppercase;
+        color:var(--hi); margin-bottom:12px; }
+  .ph span { padding:2px 7px; border:1px solid var(--hi); border-radius:5px; }
+  .ph::after { content:""; flex:1; height:1px; background:linear-gradient(90deg, var(--line), transparent); }
+  .stage { position:relative; width:100%; aspect-ratio:4/3; background:#000; border-radius:12px; overflow:hidden;
+           border:1px solid var(--line); box-shadow:0 0 28px rgba(220,20,60,.25); }
+  video, canvas.ov { position:absolute; inset:0; width:100%; height:100%; transform:scaleX(-1); object-fit:cover; }
+  .stage::after { content:""; position:absolute; left:0; right:0; height:90px; top:-90px; pointer-events:none;
+                  background:linear-gradient(180deg, transparent, rgba(220,20,60,.18), transparent); animation:scan 4.5s linear infinite; }
+  @keyframes scan { to { transform:translateY(calc(100% + 90px + 540px)); } }
+  .cr { position:absolute; width:26px; height:26px; border:2px solid var(--hi); filter:drop-shadow(0 0 6px var(--accent)); z-index:3; pointer-events:none; }
+  .cr.tl { top:10px; left:10px; border-right:0; border-bottom:0; } .cr.tr { top:10px; right:10px; border-left:0; border-bottom:0; }
+  .cr.bl { bottom:10px; left:10px; border-right:0; border-top:0; } .cr.br { bottom:10px; right:10px; border-left:0; border-top:0; }
+  .tag { position:absolute; z-index:3; left:44px; top:14px; font:700 .7rem var(--mono); letter-spacing:.14em; color:var(--hi); text-shadow:var(--glow); }
+  .status { position:absolute; inset:0; z-index:4; display:flex; align-items:center; justify-content:center; color:#fff; text-align:center;
+            padding:16px; background:rgba(6,1,10,.72); font:500 .95rem var(--mono); letter-spacing:.06em; }
+  .controls { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:14px; }
+  button { padding:11px 24px; border:1px solid var(--hi); border-radius:10px; color:#fff; font:700 .9rem var(--mono); letter-spacing:.14em;
+           text-transform:uppercase; cursor:pointer; background:linear-gradient(135deg, #dc143c, #8f0d2a); box-shadow:var(--glow);
+           transition:transform .12s, box-shadow .2s; }
+  button:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 0 14px #dc143c, 0 0 40px rgba(220,20,60,.7); }
+  button:disabled { opacity:.45; cursor:default; }
+  select { padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:rgba(0,0,0,.4); color:var(--text); font:600 .8rem var(--mono); }
+  label.chk { font:600 .78rem var(--mono); letter-spacing:.06em; color:var(--muted); display:flex; gap:7px; align-items:center; cursor:pointer; }
+  input[type=checkbox] { accent-color:var(--accent); width:16px; height:16px; }
+  .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:14px; }
+  .tile { border:1px solid var(--line); border-radius:12px; padding:10px 12px; background:rgba(0,0,0,.3); }
+  .tile b { display:block; font:800 1.5rem var(--mono); color:#fff; text-shadow:var(--glow); }
+  .tile span { font:600 .64rem var(--mono); letter-spacing:.14em; color:var(--muted); text-transform:uppercase; }
+  .big { text-align:center; margin-bottom:8px; }
+  #sphere { width:150px; height:150px; display:block; margin:-6px auto 0; }
+  .big .label { font-size:1.45rem; font-weight:800; text-transform:capitalize; color:#fff; text-shadow:var(--glow); letter-spacing:.04em; }
+  .big .conf { color:var(--muted); font:.78rem var(--mono); letter-spacing:.08em; min-height:1.2em; }
+  .row { display:flex; align-items:center; gap:10px; margin:8px 0; font:.78rem var(--mono); }
+  .row span.n { width:78px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
+  .bar { position:relative; flex:1; height:10px; background:rgba(220,20,60,.1); border:1px solid var(--line); border-radius:3px; overflow:hidden; }
+  .bar::after { content:""; position:absolute; inset:0; background:repeating-linear-gradient(90deg, transparent 0 6px, rgba(8,2,12,.92) 6px 8px); }
+  .bar i { display:block; height:100%; width:0; transition:width .12s; box-shadow:0 0 12px currentColor; }
+  .row span.p { width:40px; text-align:right; font-variant-numeric:tabular-nums; color:var(--text); }
+  .count { display:flex; align-items:center; gap:16px; margin-bottom:12px; padding:10px 14px; border-radius:14px;
+           border:1px solid var(--line); background:linear-gradient(135deg, rgba(220,20,60,.16), rgba(0,0,0,.2)); }
+  .count .num { width:76px; height:76px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex:none;
+                font:800 2.8rem var(--mono); color:#fff; text-shadow:var(--glow); border:2px solid var(--hi); box-shadow:var(--glow), inset 0 0 18px rgba(220,20,60,.5); }
+  .count .t { color:var(--muted); font:.8rem var(--mono); letter-spacing:.06em; text-transform:uppercase; }
+  .hand { display:flex; gap:12px; align-items:center; padding:10px 12px; margin-bottom:8px; border-radius:12px;
+          background:rgba(0,0,0,.3); border:1px solid var(--line); border-left:3px solid var(--hi); }
+  .hand .he { font-size:2.1rem; line-height:1; filter:drop-shadow(0 0 8px rgba(220,20,60,.7)); }
+  .hand b { text-transform:capitalize; color:#fff; }
+  .hand.pair { background:linear-gradient(135deg, rgba(220,20,60,.28), rgba(0,0,0,.3)); border-color:var(--hi); box-shadow:0 0 16px rgba(220,20,60,.4); }
+  .dots { letter-spacing:4px; font-size:.78rem; color:var(--hi); margin:3px 0; }
+  .dots .off { color:rgba(220,20,60,.28); }
+  .hand .acc { color:var(--muted); font:.72rem var(--mono); letter-spacing:.04em; }
+  .none { color:var(--muted); font:.8rem var(--mono); letter-spacing:.04em; padding:6px 2px; }
+  small { color:var(--muted); display:block; margin-top:6px; font-size:.75rem; line-height:1.5; }
+</style>
+</head>
+<body>
+<div class="bgfx"></div>
+<main>
+  <header class="top">
+    <div class="brand">
+      <div class="logo"></div>
+      <div><h1>Neural Vision</h1><p class="sub">Emotion &amp; gesture intelligence · runs 100% in your browser</p></div>
+    </div>
+    <div class="chips">
+      <span class="chip"><i class="dot" id="dot"></i><b id="sys">STANDBY</b></span>
+      <span class="chip">ON-DEVICE AI</span>
+      <span class="chip">NO UPLOAD</span>
+    </div>
+  </header>
+
+  <div class="layout">
+    <section>
+      <div class="panel">
+        <div class="ph"><span>CAM</span>Live feed</div>
+        <div class="stage">
+          <video id="video" autoplay muted playsinline></video>
+          <canvas class="ov" id="overlay"></canvas>
+          <i class="cr tl"></i><i class="cr tr"></i><i class="cr bl"></i><i class="cr br"></i>
+          <div class="tag">● REC · CAM 01</div>
+          <div class="status" id="status">Click “Show face” to begin.</div>
+        </div>
+        <div class="controls">
+          <button id="start">Show face</button>
+          <select id="mode" title="Face detector">
+            <option value="tiny">Fast (Tiny)</option>
+            <option value="ssd">Accurate (SSD)</option>
+          </select>
+          <label class="chk"><input type="checkbox" id="useHands" checked> Hand gestures</label>
+        </div>
+        <div class="stats">
+          <div class="tile"><b id="sFace">0</b><span>Faces</span></div>
+          <div class="tile"><b id="sHand">0</b><span>Hands</span></div>
+          <div class="tile"><b id="sFF">0</b><span>Face FPS</span></div>
+          <div class="tile"><b id="sHF">0</b><span>Hand FPS</span></div>
+        </div>
+      </div>
+    </section>
+
+    <aside>
+      <div class="panel">
+        <div class="ph"><span>01</span>Emotion analysis</div>
+        <div class="big">
+          <canvas id="sphere" width="300" height="300"></canvas>
+          <div class="label" id="label">No face yet</div>
+          <div class="conf" id="conf"></div>
+        </div>
+        <div id="bars"></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span>02</span>Gesture intelligence</div>
+        <div class="count"><div class="num" id="num">–</div><div class="t" id="ctext">Show fingers to count</div></div>
+        <div id="combo"></div>
+        <div id="hands"><div class="none">Show a hand to the camera.</div></div>
+        <small>Tip: good, even lighting and a plain background help. Accuracy is measured over the last few frames. Estimates may not reflect how someone actually feels.</small>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js"></script>
+<script>
+const FACE_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model/";
+const HANDS_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/";
+const EMO = {
+  happy:["😄","#34c759"], sad:["😢","#5ea0ff"], angry:["😠","#ff6b6b"],
+  surprised:["😲","#ffd60a"], fearful:["😨","#bf5af2"],
+  disgusted:["🤢","#8bc34a"], neutral:["😐","#98a2b3"]
+};
+const $ = id => document.getElementById(id);
+const video = $("video"), canvas = $("overlay"), statusEl = $("status"), startBtn = $("start");
+const smooth = {}; let held = null, cand = null, candN = 0, faceNow = false;
+let hands = null, handResults = null;
+
+Object.entries(EMO).forEach(([k,[e,c]]) => {
+  smooth[k] = 0;
+  $("bars").insertAdjacentHTML("beforeend",
+    `<div class="row"><span class="n">${k}</span><div class="bar"><i id="b-${k}" style="background:${c}"></i></div><span class="p" id="p-${k}">0%</span></div>`);
+});
+const setStatus = m => { statusEl.textContent = m; statusEl.style.display = m ? "flex" : "none"; };
+
+/* ---------- rotating crimson wireframe sphere ---------- */
+(function sphere() {
+  const c = $("sphere"), g = c.getContext("2d"), R = 100, cx = 150, cy = 150;
+  let a = 0;
+  function pt(lat, lon, rot, tilt) {
+    const x = Math.cos(lat) * Math.cos(lon + rot), y = Math.sin(lat), z = Math.cos(lat) * Math.sin(lon + rot);
+    return [cx + x * R, cy - (y * Math.cos(tilt) - z * Math.sin(tilt)) * R, y * Math.sin(tilt) + z * Math.cos(tilt)];
+  }
+  function line(f) {
+    for (let i = 0; i < 48; i++) {
+      const p = f(i / 48 * Math.PI * 2), q = f((i + 1) / 48 * Math.PI * 2);
+      g.strokeStyle = `rgba(240,52,90,${0.12 + 0.8 * (p[2] + 1) / 2})`;
+      g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(q[0], q[1]); g.stroke();
+    }
+  }
+  (function frame() {
+    a += faceNow ? 0.03 : 0.012;
+    g.clearRect(0, 0, 300, 300);
+    g.lineWidth = 1.6; g.shadowColor = "#dc143c"; g.shadowBlur = faceNow ? 14 : 8;
+    for (let k = 0; k < 6; k++) line(t => pt(t, k * Math.PI / 6, a, 0.4));
+    for (let k = -2; k <= 2; k++) line(t => pt(k * Math.PI / 6, t, a, 0.4));
+    requestAnimationFrame(frame);
+  })();
+})();
+
+/* ---------- gesture recognition from 21 hand landmarks ---------- */
+const clamp = v => Math.max(0, Math.min(1, v));
+const FINGERS = [[5,6,7,8],[9,10,11,12],[13,14,15,16],[17,18,19,20]];
+const GESTURES = {
+  "00000":["Fist","✊"], "11111":["Open Palm","🖐️"], "01000":["Pointing","☝️"], "01100":["Peace","✌️"],
+  "01110":["Three","3️⃣"], "01111":["Four","4️⃣"], "01001":["Rock","🤘"], "11001":["Love You","🤟"], "10001":["Call Me","🤙"]
+};
+function classify(lm, W, H) {
+  const P = lm.map(p => [p.x * W, p.y * H, p.z * W]);
+  const d = (a, b) => Math.hypot(P[a][0]-P[b][0], P[a][1]-P[b][1], P[a][2]-P[b][2]);
+  const angle = (a, b, c) => {
+    const u = P[a].map((v,i) => v - P[b][i]), w = P[c].map((v,i) => v - P[b][i]);
+    const dot = u[0]*w[0] + u[1]*w[1] + u[2]*w[2];
+    return Math.acos(Math.max(-1, Math.min(1, dot / (Math.hypot(...u) * Math.hypot(...w) + 1e-9)))) * 180 / Math.PI;
+  };
+  const size = d(0, 9) + 1e-9;                       // palm length: makes everything scale-invariant
+  // Thumb: joint straightness + how far the tip is from the palm
+  const s1 = clamp((angle(2, 3, 4) - 120) / 40), s2 = clamp((d(4, 17) / size - 0.85) / 0.3);
+  const s = [0.5 * s1 + 0.5 * s2];
+  // Other fingers: PIP joint straightness, penalised if the tip folds toward the wrist
+  FINGERS.forEach(([m, p, , t]) => {
+    let v = clamp((angle(m, p, t) - 100) / 65);
+    if (d(t, 0) < d(p, 0)) v *= 0.3;
+    s.push(v);
+  });
+  const ext = s.map(v => v > 0.5 ? 1 : 0), pattern = ext.join("");
+  const conf = s.reduce((a, v) => a + Math.abs(2 * v - 1), 0) / 5;   // how decisive the 5 finger states are
+  let name, emoji;
+  if (d(4, 8) / size < 0.3 && ext[2] && ext[3] && ext[4]) { name = "OK"; emoji = "👌"; }
+  else if (pattern === "10000") {
+    const up = P[0][1] - P[4][1];                                      // image y grows downward
+    if (up > 0.6 * size) { name = "Thumbs Up"; emoji = "👍"; }
+    else if (up < -0.6 * size) { name = "Thumbs Down"; emoji = "👎"; }
+    else { name = "Thumb Out"; emoji = "👍"; }
+  } else if (GESTURES[pattern]) [name, emoji] = GESTURES[pattern];
+  else { name = "Custom"; emoji = "❔"; }
+  return { name, emoji, pattern, conf, count: ext[0]+ext[1]+ext[2]+ext[3]+ext[4] };
+}
+const HAND_LINES = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],
+  [9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+const hist = {};   // per-hand rolling buffer for temporal voting
+const WIN = 6;
+
+let lastHtml = "", W = 640, H = 480, running = false;
+let faceRes = [], handItems = [];
+
+function renderHands(items) {
+  const total = items.reduce((a, h) => a + h.count, 0);
+  const html = items.length ? items.map(h => {
+    const dots = [...h.pattern].map(c => `<span class="${c === "1" ? "" : "off"}">●</span>`).join("");
+    return `<div class="hand"><div class="he">${h.emoji}</div><div><b>${h.name}</b> · ${h.side} hand · ${h.count} up
+      <div class="dots" title="thumb, index, middle, ring, pinky">${dots}</div>
+      <div class="acc">Pattern ${h.pattern} · accuracy ${h.acc}%</div></div></div>`;
+  }).join("") : '<div class="none">Show a hand to the camera.</div>';
+  if (html !== lastHtml) { $("hands").innerHTML = html; lastHtml = html; }   // touch the DOM only on change
+  $("num").textContent = items.length ? total : "–";
+  $("ctext").textContent = !items.length ? "Show fingers to count"
+    : (items.length > 1 ? items.map(h => h.count).join(" + ") + " = " : "") + (total === 1 ? "finger up" : "fingers up");
+}
+
+const pairBuf = []; let comboShown = null, lastCombo = "";
+function classifyBoth(items) {
+  if (items.length < 2) return null;
+  const [a, b] = items;
+  if (a.name === "Detecting…" || b.name === "Detecting…") return null;
+  const P = (h, i) => [h.lm[i].x * W, h.lm[i].y * H];
+  const dist = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]);
+  const size = (dist(P(a, 0), P(a, 9)) + dist(P(b, 0), P(b, 9))) / 2 + 1e-9;
+  const near = dist(P(a, 9), P(b, 9)) / size;                       // how close the two palms are
+  const upright = h => P(h, 0)[1] > P(h, 12)[1];                    // fingertips above the wrist
+  if (a.pattern === "11111" && b.pattern === "11111" && near < 1.3)
+    return upright(a) && upright(b) ? ["Namaste", "🙏"] : ["Clap", "👏"];
+  if (a.pattern.startsWith("11") && b.pattern.startsWith("11") &&
+      dist(P(a, 4), P(b, 4)) / size < 0.6 && dist(P(a, 8), P(b, 8)) / size < 0.8) return ["Heart", "❤️"];
+  if (a.name === b.name) {
+    const m = { "Thumbs Up":["Double Thumbs Up","👍👍"], "Peace":["Double Peace","✌️✌️"], "Fist":["Both Fists","✊✊"],
+                "Open Palm":["Both Palms (Stop)","🖐️🖐️"], "Rock":["Double Rock","🤘🤘"] };
+    return m[a.name] || ["Both: " + a.name, a.emoji + b.emoji];
+  }
+  return [a.name + " + " + b.name, a.emoji + b.emoji];             // two different gestures at once
+}
+function updateCombo(items) {
+  const r = classifyBoth(items);
+  if (items.length < 2) pairBuf.length = 0; else { pairBuf.push(r ? r[0] + "|" + r[1] : ""); if (pairBuf.length > WIN) pairBuf.shift(); }
+  const tally = {}; pairBuf.forEach(k => tally[k] = (tally[k] || 0) + 1);
+  const top = Object.entries(tally).sort((x, y) => y[1] - x[1])[0];
+  comboShown = (top && top[0] && top[1] >= Math.min(3, pairBuf.length)) ? { name: top[0].split("|")[0], emoji: top[0].split("|")[1] } : null;
+  const html = comboShown
+    ? `<div class="hand pair"><div class="he">${comboShown.emoji}</div><div><b>Two-hand: ${comboShown.name}</b><div class="acc">Both hands detected</div></div></div>`
+    : (items.length > 1 ? '<div class="none" style="margin-bottom:8px">Both hands detected…</div>' : '');
+  if (html !== lastCombo) { $("combo").innerHTML = html; lastCombo = html; }
+}
+
+function analyzeHands() {
+  const lms = (handResults && handResults.multiHandLandmarks) || [], items = [], seen = new Set();
+  lms.forEach((lm, i) => {
+    let side = handResults.multiHandedness[i].label === "Left" ? "Right" : "Left";   // input is not mirrored
+    if (seen.has(side)) side += i; seen.add(side);
+    const r = classify(lm, W, H);
+    const buf = (hist[side] = hist[side] || []); buf.push(r); if (buf.length > WIN) buf.shift();
+    const tally = f => { const c = {}; buf.forEach(b => c[f(b)] = (c[f(b)] || 0) + 1);
+                         return Object.entries(c).sort((a, b) => b[1] - a[1])[0]; };
+    const need = Math.min(3, buf.length);
+    const [gName, gN] = tally(b => b.name), [cnt, cN] = tally(b => b.count);
+    const same = buf.filter(b => b.name === gName), last = same[same.length - 1];
+    const acc = Math.round(gN / buf.length * same.reduce((a, b) => a + b.conf, 0) / same.length * 100);
+    const ok = gN >= need;
+    items.push({ name: ok ? last.name : "Detecting…", emoji: ok ? last.emoji : "⏳", pattern: ok ? last.pattern : r.pattern,
+                 acc: ok ? acc : 0, side, count: cN >= need ? Number(cnt) : r.count, lm });
+  });
+  Object.keys(hist).forEach(k => { if (!seen.has(k)) delete hist[k]; });
+  items.sort((x, y) => x.side.localeCompare(y.side));              // Left hand first, then Right
+  handItems = items; renderHands(items); updateCombo(items);
+}
+
+/* ---------- face emotion ---------- */
+function faceOpts() {
+  return ($("mode").value === "ssd" && faceapi.nets.ssdMobilenetv1.isLoaded)
+    ? new faceapi.SsdMobilenetv1Options({ minConfidence: 0.45 })
+    : new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.4 });
+}
+function updatePanel(expr) {
+  for (const k in EMO) smooth[k] = smooth[k] * 0.5 + (expr[k] || 0) * 0.5;       // smoothing
+  const top = Object.entries(smooth).sort((a,b) => b[1]-a[1])[0][0];
+  if (!held) held = top;
+  else if (top !== held && smooth[top] > smooth[held] + 0.08) {                  // hysteresis
+    cand === top ? candN++ : (cand = top, candN = 1);
+    if (candN >= 2) { held = top; cand = null; candN = 0; }
+  } else { cand = null; candN = 0; }
+  for (const k in EMO) {
+    const pct = Math.round(smooth[k] * 100);
+    $("b-" + k).style.width = pct + "%"; $("p-" + k).textContent = pct + "%";
+  }
+  $("label").textContent = EMO[held][0] + " " + held;
+  $("conf").textContent = "Confidence " + Math.round(smooth[held] * 100) + "%";
+}
+function noFaceUI() {
+  held = null; cand = null;
+  for (const k in EMO) { smooth[k] *= 0.8; const p = Math.round(smooth[k]*100); $("b-" + k).style.width = p + "%"; $("p-" + k).textContent = p + "%"; }
+  $("label").textContent = "No face yet"; $("conf").textContent = "";
+}
+
+/* ---------- independent loops: face, hands and drawing never wait on each other ---------- */
+const tick = () => new Promise(r => setTimeout(r, 0));
+let fN = 0, hN = 0;
+setInterval(() => {
+  $("sFace").textContent = faceRes.length; $("sHand").textContent = handItems.length;
+  $("sFF").textContent = fN; $("sHF").textContent = $("useHands").checked ? hN : "–"; fN = 0; hN = 0;
+}, 1000);
+async function faceLoop() {
+  while (running) {
+    try {
+      faceRes = await faceapi.detectAllFaces(video, faceOpts()).withFaceExpressions();
+      faceNow = faceRes.length > 0; fN++;
+      if (faceNow) updatePanel(faceRes.reduce((a, b) => a.detection.box.area > b.detection.box.area ? a : b).expressions);
+      else noFaceUI();
+    } catch (e) { console.warn(e); }
+    await tick();
+  }
+}
+async function handLoop() {
+  while (running) {
+    if ($("useHands").checked) {
+      try { await hands.send({ image: video }); analyzeHands(); hN++; } catch (e) { console.warn(e); }
+      await tick();
+    } else {
+      if (handItems.length) { handItems = []; renderHands([]); updateCombo([]); }
+      await new Promise(r => setTimeout(r, 150));
+    }
+  }
+}
+function draw(ctx) {
+  ctx.clearRect(0, 0, W, H);
+  faceRes.forEach(f => {
+    const { x, y, width, height } = f.detection.box;
+    const top = Object.entries(f.expressions).sort((a,b) => b[1]-a[1])[0];
+    ctx.shadowColor = "#dc143c"; ctx.shadowBlur = 16; ctx.strokeStyle = "#dc143c"; ctx.lineWidth = 3;
+    ctx.strokeRect(x, y, width, height);
+    ctx.shadowBlur = 0; ctx.fillStyle = "#f0345a"; ctx.font = "600 20px system-ui";
+    ctx.save(); ctx.translate(x + width, Math.max(y - 8, 20)); ctx.scale(-1, 1);       // un-mirror text
+    ctx.fillText(top[0] + " " + Math.round(top[1] * 100) + "%", 0, 0); ctx.restore();
+  });
+  handItems.forEach(h => {
+    const lm = h.lm;
+    ctx.shadowColor = "#dc143c"; ctx.shadowBlur = 10; ctx.strokeStyle = "#f0345a"; ctx.lineWidth = 3;
+    HAND_LINES.forEach(([a, b]) => { ctx.beginPath(); ctx.moveTo(lm[a].x*W, lm[a].y*H); ctx.lineTo(lm[b].x*W, lm[b].y*H); ctx.stroke(); });
+    ctx.shadowBlur = 0; ctx.fillStyle = "#fff";
+    lm.forEach(p => { ctx.beginPath(); ctx.arc(p.x*W, p.y*H, 4, 0, 7); ctx.fill(); });
+    ctx.fillStyle = "#f0345a"; ctx.font = "600 20px system-ui";
+    ctx.save(); ctx.translate(lm[0].x*W + 40, lm[0].y*H + 34); ctx.scale(-1, 1);
+    ctx.fillText(`${h.name} · ${h.count}`, 0, 0); ctx.restore();
+  });
+  if (comboShown && handItems.length > 1) {
+    const [a, b] = handItems, mx = (a.lm[0].x + b.lm[0].x) / 2 * W, my = Math.max(Math.min(a.lm[0].y, b.lm[0].y) * H - 50, 40);
+    ctx.save(); ctx.translate(mx, my); ctx.scale(-1, 1); ctx.textAlign = "center";
+    ctx.font = "700 26px system-ui"; ctx.fillStyle = "#fff"; ctx.shadowColor = "#dc143c"; ctx.shadowBlur = 16;
+    ctx.fillText(comboShown.emoji + " " + comboShown.name, 0, 0); ctx.restore();
+  }
+  if (handItems.length) {   // big finger-count badge, top-left of the video
+    const total = handItems.reduce((a, h) => a + h.count, 0);
+    ctx.shadowColor = "#dc143c"; ctx.shadowBlur = 20; ctx.fillStyle = "#f0345a"; ctx.font = "800 90px system-ui";
+    ctx.save(); ctx.translate(W - 24, 96); ctx.scale(-1, 1); ctx.fillText(String(total), 0, 0); ctx.restore();
+  }
+  requestAnimationFrame(() => draw(ctx));
+}
+
+async function start() {
+  startBtn.disabled = true;
+  try {
+    setStatus("Loading models…");
+    await Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(FACE_URL),
+      faceapi.nets.faceExpressionNet.loadFromUri(FACE_URL)
+    ]);
+    hands = new Hands({ locateFile: f => HANDS_URL + f });
+    hands.setOptions({ maxNumHands: 2, modelComplexity: 0, minDetectionConfidence: 0.5, minTrackingConfidence: 0.55 });
+    hands.onResults(r => handResults = r);
+    await hands.initialize();
+    setStatus("Waiting for camera permission…");
+    video.srcObject = await navigator.mediaDevices.getUserMedia({ video:{ width:{ideal:640}, height:{ideal:480}, frameRate:{ideal:30}, facingMode:"user" } });
+    await video.play();
+    W = video.videoWidth; H = video.videoHeight; canvas.width = W; canvas.height = H;
+    setStatus(""); running = true; $("sys").textContent = "LIVE"; $("dot").classList.add("live");
+    draw(canvas.getContext("2d")); faceLoop(); handLoop();
+  } catch (err) {
+    setStatus("Could not start: " + (err.message || err) +
+      " (Check camera permission and internet. If it still fails, serve the file with “python -m http.server”.)");
+    startBtn.disabled = false;
+  }
+}
+$("mode").addEventListener("change", async () => {       // accurate model is downloaded only when chosen
+  if ($("mode").value === "ssd" && !faceapi.nets.ssdMobilenetv1.isLoaded) {
+    const msg = running ? "Loading accurate model…" : "";
+    if (msg) setStatus(msg);
+    try { await faceapi.nets.ssdMobilenetv1.loadFromUri(FACE_URL); } catch (e) { $("mode").value = "tiny"; }
+    if (msg) setStatus("");
+  }
+});
+startBtn.addEventListener("click", start);
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js"></script>
+<script>
+const FACE_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model/";
+const HANDS_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/";
+const EMO = {
+  happy:["😄","#34c759"], sad:["😢","#5ea0ff"], angry:["😠","#ff6b6b"],
+  surprised:["😲","#ffd60a"], fearful:["😨","#bf5af2"],
+  disgusted:["🤢","#8bc34a"], neutral:["😐","#98a2b3"]
+};
+const $ = id => document.getElementById(id);
+const video = $("video"), canvas = $("overlay"), statusEl = $("status"), startBtn = $("start");
+const smooth = {}; let held = null, cand = null, candN = 0, faceNow = false;
+let hands = null, handResults = null;
+
+Object.entries(EMO).forEach(([k,[e,c]]) => {
+  smooth[k] = 0;
+  $("bars").insertAdjacentHTML("beforeend",
+    `<div class="row"><span class="n">${k}</span><div class="bar"><i id="b-${k}" style="background:${c}"></i></div><span class="p" id="p-${k}">0%</span></div>`);
+});
+const setStatus = m => { statusEl.textContent = m; statusEl.style.display = m ? "flex" : "none"; };
+
+/* ---------- rotating crimson wireframe sphere ---------- */
+(function sphere() {
+  const c = $("sphere"), g = c.getContext("2d"), R = 100, cx = 150, cy = 150;
+  let a = 0;
+  function pt(lat, lon, rot, tilt) {
+    const x = Math.cos(lat) * Math.cos(lon + rot), y = Math.sin(lat), z = Math.cos(lat) * Math.sin(lon + rot);
+    return [cx + x * R, cy - (y * Math.cos(tilt) - z * Math.sin(tilt)) * R, y * Math.sin(tilt) + z * Math.cos(tilt)];
+  }
+  function line(f) {
+    for (let i = 0; i < 48; i++) {
+      const p = f(i / 48 * Math.PI * 2), q = f((i + 1) / 48 * Math.PI * 2);
+      g.strokeStyle = `rgba(240,52,90,${0.12 + 0.8 * (p[2] + 1) / 2})`;
+      g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(q[0], q[1]); g.stroke();
+    }
+  }
+  (function frame() {
+    a += faceNow ? 0.03 : 0.012;
+    g.clearRect(0, 0, 300, 300);
+    g.lineWidth = 1.6; g.shadowColor = "#dc143c"; g.shadowBlur = faceNow ? 14 : 8;
+    for (let k = 0; k < 6; k++) line(t => pt(t, k * Math.PI / 6, a, 0.4));
+    for (let k = -2; k <= 2; k++) line(t => pt(k * Math.PI / 6, t, a, 0.4));
+    requestAnimationFrame(frame);
+  })();
+})();
+
+/* ---------- gesture recognition from 21 hand landmarks ---------- */
+const clamp = v => Math.max(0, Math.min(1, v));
+const FINGERS = [[5,6,7,8],[9,10,11,12],[13,14,15,16],[17,18,19,20]];
+const GESTURES = {
+  "00000":["Fist","✊"], "11111":["Open Palm","🖐️"], "01000":["Pointing","☝️"], "01100":["Peace","✌️"],
+  "01110":["Three","3️⃣"], "01111":["Four","4️⃣"], "01001":["Rock","🤘"], "11001":["Love You","🤟"], "10001":["Call Me","🤙"]
+};
+function classify(lm, W, H) {
+  const P = lm.map(p => [p.x * W, p.y * H, p.z * W]);
+  const d = (a, b) => Math.hypot(P[a][0]-P[b][0], P[a][1]-P[b][1], P[a][2]-P[b][2]);
+  const angle = (a, b, c) => {
+    const u = P[a].map((v,i) => v - P[b][i]), w = P[c].map((v,i) => v - P[b][i]);
+    const dot = u[0]*w[0] + u[1]*w[1] + u[2]*w[2];
+    return Math.acos(Math.max(-1, Math.min(1, dot / (Math.hypot(...u) * Math.hypot(...w) + 1e-9)))) * 180 / Math.PI;
+  };
+  const size = d(0, 9) + 1e-9;                       // palm length: makes everything scale-invariant
+  // Thumb: joint straightness + how far the tip is from the palm
+  const s1 = clamp((angle(2, 3, 4) - 120) / 40), s2 = clamp((d(4, 17) / size - 0.85) / 0.3);
+  const s = [0.5 * s1 + 0.5 * s2];
+  // Other fingers: PIP joint straightness, penalised if the tip folds toward the wrist
+  FINGERS.forEach(([m, p, , t]) => {
+    let v = clamp((angle(m, p, t) - 100) / 65);
+    if (d(t, 0) < d(p, 0)) v *= 0.3;
+    s.push(v);
+  });
+  const ext = s.map(v => v > 0.5 ? 1 : 0), pattern = ext.join("");
+  const conf = s.reduce((a, v) => a + Math.abs(2 * v - 1), 0) / 5;   // how decisive the 5 finger states are
+  let name, emoji;
+  if (d(4, 8) / size < 0.3 && ext[2] && ext[3] && ext[4]) { name = "OK"; emoji = "👌"; }
+  else if (pattern === "10000") {
+    const up = P[0][1] - P[4][1];                                      // image y grows downward
+    if (up > 0.6 * size) { name = "Thumbs Up"; emoji = "👍"; }
+    else if (up < -0.6 * size) { name = "Thumbs Down"; emoji = "👎"; }
+    else { name = "Thumb Out"; emoji = "👍"; }
+  } else if (GESTURES[pattern]) [name, emoji] = GESTURES[pattern];
+  else { name = "Custom"; emoji = "❔"; }
+  return { name, emoji, pattern, conf, count: ext[0]+ext[1]+ext[2]+ext[3]+ext[4] };
+}
+const HAND_LINES = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],
+  [9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+const hist = {};   // per-hand rolling buffer for temporal voting
+const WIN = 6;
+
+function renderHands(items) {
+  if (!items.length) { $("hands").innerHTML = '<div class="none">Show a hand to the camera.</div>'; return; }
+  $("hands").innerHTML = items.map(h => {
+    const dots = [...h.pattern].map(c => `<span class="${c === "1" ? "" : "off"}">●</span>`).join("");
+    return `<div class="hand"><div class="he">${h.emoji}</div><div><b>${h.name}</b> · ${h.side} hand
+      <div class="dots" title="thumb, index, middle, ring, pinky">${dots}</div>
+      <div class="acc">Pattern ${h.pattern} · accuracy ${h.acc}%</div></div></div>`;
+  }).join("");
+}
+
+function processHands(ctx, W, H) {
+  const out = [], seen = new Set();
+  const lms = (handResults && handResults.multiHandLandmarks) || [];
+  lms.forEach((lm, i) => {
+    let key = handResults.multiHandedness[i].label;       // MediaPipe assumes a mirrored image; ours is not
+    const side = key === "Left" ? "Right" : "Left";
+    key = side; if (seen.has(key)) key += i; seen.add(key);
+    const r = classify(lm, W, H);
+    const buf = (hist[key] = hist[key] || []); buf.push(r); if (buf.length > WIN) buf.shift();
+    const counts = {}; buf.forEach(b => counts[b.name] = (counts[b.name] || 0) + 1);
+    const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    const same = buf.filter(b => b.name === top[0]);
+    const acc = Math.round((top[1] / buf.length) * (same.reduce((a, b) => a + b.conf, 0) / same.length) * 100);
+    const last = same[same.length - 1];
+    const shown = top[1] >= Math.min(4, buf.length) ? last : { name: "Detecting…", emoji: "⏳", pattern: r.pattern };
+    out.push({ ...shown, side, acc: shown.name === "Detecting…" ? 0 : acc });
+    // draw skeleton
+    ctx.shadowColor = "#dc143c"; ctx.shadowBlur = 10; ctx.strokeStyle = "#f0345a"; ctx.lineWidth = 3;
+    HAND_LINES.forEach(([a, b]) => { ctx.beginPath(); ctx.moveTo(lm[a].x*W, lm[a].y*H); ctx.lineTo(lm[b].x*W, lm[b].y*H); ctx.stroke(); });
+    ctx.fillStyle = "#fff"; ctx.shadowBlur = 0;
+    lm.forEach(p => { ctx.beginPath(); ctx.arc(p.x*W, p.y*H, 4, 0, 7); ctx.fill(); });
+    ctx.fillStyle = "#f0345a"; ctx.font = "600 20px system-ui";
+    ctx.save(); ctx.translate(lm[0].x*W + 40, lm[0].y*H + 34); ctx.scale(-1, 1);   // un-mirror text
+    ctx.fillText(`${out[out.length-1].name} ${out[out.length-1].acc || ""}${out[out.length-1].acc ? "%" : ""}`, 0, 0); ctx.restore();
+  });
+  Object.keys(hist).forEach(k => { if (!seen.has(k)) delete hist[k]; });
+  renderHands(out);
+}
+
+/* ---------- face emotion ---------- */
+function faceOpts() {
+  return $("mode").value === "ssd"
+    ? new faceapi.SsdMobilenetv1Options({ minConfidence: 0.45 })
+    : new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.4 });
+}
+function updatePanel(expr) {
+  for (const k in EMO) smooth[k] = smooth[k] * 0.65 + (expr[k] || 0) * 0.35;   // smoothing
+  const top = Object.entries(smooth).sort((a,b) => b[1]-a[1])[0][0];
+  if (!held) held = top;
+  else if (top !== held && smooth[top] > smooth[held] + 0.08) {                  // hysteresis
+    cand === top ? candN++ : (cand = top, candN = 1);
+    if (candN >= 3) { held = top; cand = null; candN = 0; }
+  } else { cand = null; candN = 0; }
+  for (const k in EMO) {
+    const pct = Math.round(smooth[k] * 100);
+    $("b-" + k).style.width = pct + "%"; $("p-" + k).textContent = pct + "%";
+  }
+  $("label").textContent = EMO[held][0] + " " + held;
+  $("conf").textContent = "Confidence " + Math.round(smooth[held] * 100) + "%";
+}
+
+async function start() {
+  startBtn.disabled = true;
+  try {
+    setStatus("Loading models…");
+    await Promise.all([
+      faceapi.nets.ssdMobilenetv1.loadFromUri(FACE_URL),
+      faceapi.nets.tinyFaceDetector.loadFromUri(FACE_URL),
+      faceapi.nets.faceExpressionNet.loadFromUri(FACE_URL)
+    ]);
+    hands = new Hands({ locateFile: f => HANDS_URL + f });
+    hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
+    hands.onResults(r => handResults = r);
+    await hands.initialize();
+    setStatus("Waiting for camera permission…");
+    video.srcObject = await navigator.mediaDevices.getUserMedia({ video:{ width:{ideal:1280}, height:{ideal:720}, facingMode:"user" } });
+    await video.play();
+    setStatus("");
+    loop();
+  } catch (err) {
+    setStatus("Could not start: " + (err.message || err) +
+      " (Check camera permission and internet. If it still fails, serve the file with “python -m http.server”.)");
+    startBtn.disabled = false;
+  }
+}
+
+async function loop() {
+  const W = video.videoWidth, H = video.videoHeight;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  while (true) {
+    const found = await faceapi.detectAllFaces(video, faceOpts()).withFaceExpressions();
+    ctx.clearRect(0, 0, W, H);
+    faceNow = found.length > 0;
+    if (!faceNow) {
+      held = null; cand = null;
+      for (const k in EMO) { smooth[k] *= 0.8; const p = Math.round(smooth[k]*100); $("b-" + k).style.width = p + "%"; $("p-" + k).textContent = p + "%"; }
+      $("label").textContent = "No face yet"; $("conf").textContent = "";
+    } else {
+      const main = found.reduce((a, b) => a.detection.box.area > b.detection.box.area ? a : b);
+      found.forEach(f => {
+        const { x, y, width } = f.detection.box, height = f.detection.box.height;
+        const top = Object.entries(f.expressions).sort((a,b) => b[1]-a[1])[0];
+        ctx.shadowColor = "#dc143c"; ctx.shadowBlur = 16; ctx.strokeStyle = "#dc143c"; ctx.lineWidth = 3;
+        ctx.strokeRect(x, y, width, height);
+        ctx.shadowBlur = 0; ctx.fillStyle = "#f0345a"; ctx.font = "600 20px system-ui";
+        ctx.save(); ctx.translate(x + width, Math.max(y - 8, 20)); ctx.scale(-1, 1);
+        ctx.fillText(top[0] + " " + Math.round(top[1] * 100) + "%", 0, 0); ctx.restore();
+      });
+      updatePanel(main.expressions);
+    }
+    if ($("useHands").checked) {
+      await hands.send({ image: video });
+      processHands(ctx, W, H);
+    } else { handResults = null; renderHands([]); }
+    await new Promise(r => requestAnimationFrame(r));
+  }
+}
+startBtn.addEventListener("click", start);
+</script>
+</body>
+</html>
